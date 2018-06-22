@@ -37,12 +37,15 @@ export class SegmentText extends React.Component {
                 if (trail !== -1) {
                     response = response.slice(0, trail);
                 }
+                let stripNewLine = this.props.stripNewLine;
                 if (response.endsWith("\n")) {
                     response = response.slice(0, -1);
+                } else {
+                    stripNewLine = true;
                 }
                 this.setState({
                     loaded: true,
-                    lines: (response === "" && this.props.stripNewLine ? [] : response.split("\n")),
+                    lines: (response === "" && stripNewLine ? [] : response.split("\n")),
                 });
             } else {
                 this.setState({
