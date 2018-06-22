@@ -1,0 +1,6 @@
+[submodule "segmentator"]
+	path = segmentator
+	url = git@github.com:dmage/openshift-segmentator.git
+[submodule "digdown"]
+	path = digdown
+	url = git@github.com:dmage/digdown.git

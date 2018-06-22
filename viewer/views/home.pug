@@ -1,0 +1,11 @@
+doctype html
+html
+  head
+    title Log Viewer
+    link(rel="stylesheet/less" type="text/css" href=APP_ROOT+"/-/assets/styles.less")
+    script(src="//cdnjs.cloudflare.com/ajax/libs/less.js/3.0.0/less.min.js")
+  body.home
+    form(method="POST" action=APP_ROOT+"/-/go-to-url")
+      h1 Log Viewer
+      input(type="text" name="url" placeholder="https://openshift-gce-devel.appspot.com/build/origin-ci-test/pr-logs/pull/20000/test_pull_request_origin_extended_conformance_gce/21148/" autofocus)
+      input(type="submit")

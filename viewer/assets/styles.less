@@ -1,0 +1,199 @@
+@grey-70: hsv(0, 0%, 70%);
+@grey-80: hsv(0, 0%, 80%);
+@grey-90: hsv(0, 0%, 90%);
+@red-80: hsv(6, 95%, 80%);
+@red-90: hsv(6, 30%, 90%);
+@yellow-80: hsv(51, 95%, 80%);
+@yellow-90: hsv(51, 30%, 90%);
+@green-80: hsv(72, 95%, 80%);
+@green-90: hsv(72, 30%, 90%);
+@blue-75: hsv(214, 100%, 75%);
+@blue-80: hsv(214, 75%, 80%);
+@blue-90: hsv(214, 10%, 90%);
+
+@header-size: 32px;
+@content-padding: 8px;
+
+.home {
+    form {
+        margin: 5em auto 0;
+        text-align: center;
+        width: 90%;
+        max-width: 600px;
+    }
+    form input[type="text"] {
+        width: 100%;
+        font-size: 1.5em;
+    }
+}
+
+.sgr-fg-0 { color: #333; }
+.sgr-fg-1 { color: #933; }
+.sgr-fg-2 { color: #393; }
+.sgr-fg-3 { color: #993; }
+.sgr-fg-4 { color: #339; }
+.sgr-fg-5 { color: #939; }
+.sgr-fg-6 { color: #399; }
+.sgr-fg-7 { color: #999; }
+.sgr-bg-0 { background-color: #333; }
+.sgr-bg-1 { background-color: #933; }
+.sgr-bg-2 { background-color: #393; }
+.sgr-bg-3 { background-color: #993; }
+.sgr-bg-4 { background-color: #339; }
+.sgr-bg-5 { background-color: #939; }
+.sgr-bg-6 { background-color: #399; }
+.sgr-bg-7 { background-color: #999; }
+.sgr-bold { font-weight: bold; }
+.sgr-bold.sgr-fg-0 { color: #333; }
+.sgr-bold.sgr-fg-1 { color: #c33; }
+.sgr-bold.sgr-fg-2 { color: #3c3; }
+.sgr-bold.sgr-fg-3 { color: #cc3; }
+.sgr-bold.sgr-fg-4 { color: #33c; }
+.sgr-bold.sgr-fg-5 { color: #c3c; }
+.sgr-bold.sgr-fg-6 { color: #3cc; }
+.sgr-bold.sgr-fg-7 { color: #ccc; }
+
+a, a:visited {
+    color: @blue-75;
+}
+
+.global-buttons {
+    position: fixed;
+    top: @content-padding;
+    right: (2*@content-padding);
+    z-index: 1;
+
+    .checkbox input {
+        display: none;
+    }
+    .checkbox span {
+        cursor: pointer;
+        -webkit-user-select: none;
+        user-select: none;
+
+        border: 1px solid @grey-80;
+        color: @grey-70;
+        background: fade(@grey-90, 80%);
+
+        display: block;
+
+        width: @header-size;
+        line-height: @header-size;
+        text-align: center;
+
+        font-family: monospace;
+    }
+    .checkbox span:hover {
+        background: fade(@grey-80, 80%);
+    }
+    .checkbox input:checked + span {
+        border: 1px solid @blue-80;
+        color: #000;
+        background: @blue-90;
+    }
+    .checkbox input:checked + span:hover {
+        background: @blue-80;
+    }
+}
+
+.highlight {
+	background-color: @blue-90;
+}
+
+.segment-header, .segment-content li {
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+
+.chop-long-lines {
+    .segment-header, .segment-content li {
+        white-space: pre;
+        word-break: keep-all;
+    }
+}
+
+.segment-header {
+    cursor: pointer;
+
+    background: @grey-90;
+}
+
+.segment-box {
+    color: #fff;
+    background: @grey-80;
+
+    position: relative;
+    display: inline-block;
+    vertical-align: top;
+
+    width: @header-size;
+    line-height: @header-size;
+    text-align: center;
+}
+
+.segment-status-success.segment-header {
+    background: @green-90;
+}
+.segment-status-success .segment-box {
+    background: @green-80;
+}
+.segment-status-skipped.segment-header {
+    background: @blue-90;
+}
+.segment-status-skipped .segment-box {
+    background: @blue-80;
+}
+.segment-status-failure.segment-header {
+    background: @red-90;
+}
+.segment-status-failure .segment-box {
+    background: @red-80;
+}
+
+.segment-title {
+    display: block;
+
+    padding: @content-padding;
+    margin-left: @header-size;
+    margin-top: -@header-size;
+    min-height: (@header-size - 2*@content-padding);
+}
+
+.segment-more {
+    padding: 0 0 0 @header-size;
+}
+
+.segment-content ul, .segment-content .segment {
+    margin: @content-padding 0;
+}
+
+.segment-content ul {
+    padding: 0 0 0 @header-size;
+    list-style: none;
+    counter-reset: lineNumber;
+}
+
+.segment-content li {
+    position: relative;
+    padding-left: @content-padding;
+}
+
+.segment-content li::before {
+    -webkit-user-select: none;
+    user-select: none;
+
+    counter-increment: lineNumber;
+    content: counter(lineNumber);
+
+    color: @grey-80;
+
+    position: absolute;
+    left: -@header-size;
+    top: 2px;
+
+    font-size: 80%;
+    width: @header-size;
+    text-align: center;
+}

@@ -1,0 +1,5 @@
+.git/
+cache/
+db/
+jobs/
+*/node_modules/
