@@ -1,7 +1,7 @@
 const path = require("path");
 
 module.exports = {
-    entry: "./src/index.js",
+    entry: ["core-js/fn/promise", "./src/index.js"],
     module: {
         rules: [
             {

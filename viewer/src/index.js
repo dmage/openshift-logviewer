@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom";
-import { SegmentContent } from "./segment_viewer";
+import { Content, httpDataSource } from "./segment_viewer";
 
 class CheckBox extends React.Component {
     constructor(props) {
@@ -34,7 +34,7 @@ class App extends React.Component {
             <div className={this.state.chopLongLines ? "chop-long-lines" : ""}>
                 <div className="global-buttons"><CheckBox checked={this.state.chopLongLines} onChange={checked => this.setState({chopLongLines: checked})}>-S</CheckBox></div>
                 <a href={APP_ROOT + "/"}>Home</a>
-                <SegmentContent {...this.props.segment} />
+                <Content {...this.props.segment} dataSource={httpDataSource} />
             </div>
         );
     }

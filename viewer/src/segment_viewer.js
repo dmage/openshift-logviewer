@@ -2,7 +2,26 @@ import React from "react";
 import interpretANSI from "./interpret_ansi";
 import { filterGitHubGoLink, filterHighlight, filterHTML } from "./line_filters";
 
-export class SegmentLine extends React.Component {
+export function httpDataSource(offset, length) {
+    return new Promise((resolve, reject) => {
+        let request = new XMLHttpRequest();
+        request.open('GET', '?resource=raw', true);
+        request.setRequestHeader("Range", "bytes=" + offset + "-" + (offset + length - 1));
+        request.onload = () => {
+            if (request.status >= 200 && request.status < 400) {
+                resolve(request.responseText);
+            } else {
+                reject(new Error("unable to load data, request status code: " + request.status));
+            }
+        };
+        request.onerror = function() {
+            reject(new Error("connection error"));
+        };
+        request.send();
+    });
+}
+
+export class Line extends React.Component {
     renderChildren() {
         let parts = interpretANSI(this.props.children);
         parts = filterGitHubGoLink(parts);
@@ -18,7 +37,7 @@ export class SegmentLine extends React.Component {
     }
 }
 
-export class SegmentText extends React.Component {
+export class Text extends React.Component {
     constructor(props) {
         super(props);
         this.state = {
@@ -27,44 +46,38 @@ export class SegmentText extends React.Component {
         };
     }
     componentDidMount() {
-        let request = new XMLHttpRequest();
-        request.open('GET', '?resource=raw', true);
-        request.setRequestHeader("Range", "bytes=" + this.props.offset + "-" + (this.props.offset + this.props.length - 1));
-        request.onload = () => {
-            if (request.status >= 200 && request.status < 400) {
-                let response = request.responseText;
+        this.props.dataSource(this.props.offset, this.props.length)
+            .then((response) => {
                 const trail = response.search(/[^\n]*\r\x1b\[0?K$/);
                 if (trail !== -1) {
                     response = response.slice(0, trail);
                 }
-                let stripNewLine = this.props.stripNewLine;
+                let hasEOL = false;
                 if (response.endsWith("\n")) {
                     response = response.slice(0, -1);
-                } else {
-                    stripNewLine = true;
+                    hasEOL = true;
+                }
+                if (this.props.last) {
+                    hasEOL = false;
                 }
                 this.setState({
                     loaded: true,
-                    lines: (response === "" && stripNewLine ? [] : response.split("\n")),
+                    lines: (response === "" && !hasEOL ? [] : response.split("\n")),
                 });
-            } else {
+            })
+            .catch((err) => {
                 this.setState({
                     loaded: true,
-                    lines: ["unable to load data, request status code: " + request.status],
+                    lines: [err.toString()],
                 });
-            }
-        };
-        request.onerror = function() {
-            // There was some sort of connection error
-        };
-        request.send();
+            });
     }
     render() {
         return (
             <ul>
                 {this.state.lines.map((line, i) => {
                     return (
-                        <SegmentLine key={i}>{line}</SegmentLine>
+                        <Line key={i}>{line}</Line>
                     );
                 })}
             </ul>
@@ -72,19 +85,31 @@ export class SegmentText extends React.Component {
     }
 }
 
-export class SegmentContent extends React.Component {
+export class Content extends React.Component {
     render() {
         let offset = 0;
         let segments = [];
         this.props.segments.forEach((segment, i) => {
             if (offset < segment.offset) {
-                segments.push(<SegmentText offset={this.props.offset + offset} length={segment.offset - offset} key={"gap-" + i} />);
+                segments.push(<Text
+                    offset={offset}
+                    length={segment.offset - offset}
+                    dataSource={this.props.dataSource}
+                    key={"gap-" + i} />);
             }
-            segments.push(<Segment offset={this.props.offset + segment.offset} length={segment.length} metadata={segment.metadata} segments={segment.segments} key={"item-" + i} />);
+            segments.push(<Segment
+                {...segment}
+                dataSource={(off, len) => this.props.dataSource(segment.offset + off, len)}
+                key={"item-" + i} />);
             offset = segment.offset + segment.length;
         });
         if (offset < this.props.length) {
-            segments.push(<SegmentText offset={this.props.offset + offset} length={this.props.length - offset} stripNewLine={true} key="tail" />);
+            segments.push(<Text
+                offset={offset}
+                length={this.props.length - offset}
+                last={true}
+                dataSource={this.props.dataSource}
+                key="tail" />);
         }
         return (
             <div className="segment-content">
@@ -122,7 +147,7 @@ export class Segment extends React.Component {
                         <div className="segment-box">▼</div><div className="segment-title">{this.props.metadata.name}</div>
                     </div>
                     <div className="segment-more">
-                        <SegmentContent {...this.props} />
+                        <Content {...this.props} />
                     </div>
                 </div>
             );
