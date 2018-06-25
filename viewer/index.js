@@ -3,6 +3,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const serveStatic = require("serve-static");
 const slashes = require("connect-slashes");
+const morgan = require("morgan");
 const fs = require("fs");
 const path = require("path");
 const child_process = require("child_process");
@@ -11,7 +12,9 @@ const app = express();
 app.enable("strict routing");
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "pug");
+app.set("trust proxy", "loopback, linklocal, uniquelocal");
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(morgan("combined"));
 
 const RESOURCES_ROOT = process.env.DIGDOWN_RESOURCES_ROOT;
 if (typeof RESOURCES_ROOT === "undefined" || RESOURCES_ROOT === "") {
