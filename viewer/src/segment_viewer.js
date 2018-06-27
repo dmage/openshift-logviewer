@@ -2,6 +2,8 @@ import React from "react";
 import interpretANSI from "./interpret_ansi";
 import { filterGitHubGoLink, filterHighlight, filterHTML } from "./line_filters";
 
+
+
 export function httpDataSource(url) {
     return function(offset, length) {
         return new Promise((resolve, reject) => {
@@ -183,7 +185,7 @@ export class Segment extends React.Component {
         if (this.props.scrollTo) {
             setTimeout(() => {
                 this.node.scrollIntoView();
-            }, 500);
+            }, 1000);
         }
     }
     render() {
@@ -201,7 +203,7 @@ export class Segment extends React.Component {
         }
         return (
             <div className="segment" id={id} ref={el => this.node = el}>
-                <div className={"segment-header segment-status-"+status} onClick={() => this.setState({collapsed: !this.state.collapsed})}>
+                <div className={"segment-header segment-status-"+status + (this.props.scrollTo ? " segment-selected" : "")} onClick={() => this.setState({collapsed: !this.state.collapsed})}>
                     {box}<div className="segment-title">{this.props.metadata.name} <a href={"#" + id} style={{display: "block", float: "right"}} onClick={(e) => e.stopPropagation()}>§</a></div>
                 </div>
                 {this.state.collapsed ? [] : <div className="segment-more">
