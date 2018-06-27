@@ -2,8 +2,6 @@ import React from "react";
 import interpretANSI from "./interpret_ansi";
 import { filterGitHubGoLink, filterHighlight, filterHTML } from "./line_filters";
 
-
-
 export function httpDataSource(url) {
     return function(offset, length) {
         return new Promise((resolve, reject) => {
@@ -171,9 +169,57 @@ export class Content extends React.Component {
     }
 }
 
+export class Info extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = {
+            loading: true,
+            similar: [],
+        };
+    }
+    componentDidMount() {
+        if (!this.props.metadata || this.props.metadata.status !== "failure") {
+            return;
+        }
+        let fragment = this.props.id, idx = fragment.indexOf(":");
+        if (idx === -1) {
+            return;
+        }
+        setTimeout(() => {
+            let namespace = fragment.slice(0, idx);
+            let segment = fragment.slice(idx + 1);
+            fetch(APP_ROOT + "/-/info?namespace=" + encodeURIComponent(namespace) + "&segment=" + encodeURIComponent(segment))
+                .then(function(response) {
+                    return response.json()
+                }).then(json => {
+                    console.log('parsed json', json)
+                    this.setState({
+                        similar: json.similar,
+                    });
+                }).catch(function(ex) {
+                    console.log('parsing failed', ex)
+                });
+        }, 1000);
+    }
+    render() {
+        let fragment = this.props.id, idx = fragment.indexOf(":");
+        if (idx !== -1) {
+            fragment = fragment.slice(idx + 1);
+        }
+        const id = "segment:" + fragment;
+        return (
+            <div style={{display: "block", float: "right"}} onClick={(e) => e.stopPropagation()}>
+                <span style={{opacity: 0.1}}>{this.state.similar.length > 0 ? "" + this.state.similar.length + " " : ""}</span>
+                <a href={"#" + id}>§</a>
+            </div>
+        );
+    }
+}
+
 export class Segment extends React.Component {
     static defaultProps = {
         metadata: {},
+        segments: [],
     }
     constructor(props) {
         super(props);
@@ -204,7 +250,7 @@ export class Segment extends React.Component {
         return (
             <div className="segment" id={id} ref={el => this.node = el}>
                 <div className={"segment-header segment-status-"+status + (this.props.scrollTo ? " segment-selected" : "")} onClick={() => this.setState({collapsed: !this.state.collapsed})}>
-                    {box}<div className="segment-title">{this.props.metadata.name} <a href={"#" + id} style={{display: "block", float: "right"}} onClick={(e) => e.stopPropagation()}>§</a></div>
+                    {box}<div className="segment-title">{this.props.metadata.name}<Info id={this.props.id} metadata={this.props.metadata} segments={this.props.segments} /></div>
                 </div>
                 {this.state.collapsed ? [] : <div className="segment-more">
                     {this.props.children}

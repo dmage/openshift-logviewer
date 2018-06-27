@@ -7,6 +7,8 @@ const morgan = require("morgan");
 const fs = require("fs");
 const path = require("path");
 const child_process = require("child_process");
+const segment = require("digdown/segment");
+const machine = require("digdown/machine");
 
 const app = express();
 app.enable("strict routing");
@@ -194,6 +196,133 @@ app.use("/-/assets", serveStatic(path.join(__dirname, "assets")));
 
 app.get("/", function(req, res) {
     serveHomePage(req, res);
+});
+
+const sqlite3 = require("sqlite3").verbose();
+let db = new sqlite3.Database(RESOURCES_ROOT + "/trigrams.db");
+db.run("CREATE TABLE trigrams(id text, trigrams text, PRIMARY KEY (id))", (err) => {
+    if (err && err.errno !== 1) {
+        throw err;
+    }
+    // TODO(dmage): start listener here.
+});
+function intersectionSize(as, bs) {
+    let c = 0;
+    for (let a of as) {
+        if (bs.has(a)) {
+            c++;
+        }
+    }
+    return c;
+}
+function trigramsDiff(as, bs) {
+    const al = as.size, bl = bs.size;
+    const m = (al > bl ? al : bl);
+    const d = m - intersectionSize(as, bs);
+    return d;
+}
+function storeTrigrams(namespace, id, trigrams, callback) {
+    db.run("REPLACE INTO trigrams(id, trigrams) VALUES(?, ?)", [namespace + ":" + id, JSON.stringify(Array.from(trigrams))], callback);
+}
+function findSimilar(trigrams, callback) {
+    db.all("SELECT * FROM trigrams", [], (err, rows) => {
+        if (err) {
+            callback(err);
+            return;
+        }
+        let result = [];
+        const cb = (i) => {
+            if (i === rows.length) {
+                callback(err, result);
+                return;
+            }
+            let row = rows[i];
+            if (trigramsDiff(trigrams, new Set(JSON.parse(row.trigrams))) < 10) {
+                let pos = row.id.indexOf(":");
+                result.push({
+                    namespace: row.id.slice(0, pos),
+                    segment: row.id.slice(pos + 1),
+                });
+            }
+            setTimeout(() => cb(i + 1), 0);
+        };
+        cb(0);
+    });
+}
+
+app.get("/-/info", function(req, res) {
+    const namespace = req.query.namespace;
+     if (!safePath(namespace)) {
+        res.status(400).type("text/plain").send("Unexpected value for the namespace parameter\n");
+        return;
+    }
+
+    const id = req.query.segment;
+    if (!/^[0-9]+(:[0-9]+)*$/.test(id)) {
+        res.status(400).type("text/plain").send("Unexpected value for the segment parameter\n");
+        return;
+    }
+    const ids = id.split(":").map(x => parseInt(x, 10));
+
+    readSegments(namespace, (err, data) => {
+        if (err) {
+            console.log("read segments", err);
+            res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
+            return;
+        }
+        let base = 0;
+        const seg = ids.reduce((seg, offset) => {
+            base += offset;
+            if (seg === null || typeof seg.segments === "undefined") return null;
+            let child = seg.segments.filter(x => x.offset === offset);
+            if (child.length !== 1) return null;
+            return child[0];
+        }, JSON.parse(data));
+        if (!seg.metadata || seg.metadata.status !== "failure") {
+            res.json({
+                similar: [],
+            });
+            return;
+        }
+        const stream = segment.open(RESOURCES_ROOT + "/" + namespace + "/raw", base, seg.length);
+        let set = new Set();
+        const denoise = x => {
+            const re = /(?:[=.-][A-Za-z0-9]+)+|: [A-Za-z0-9]*[0-9][A-Za-z0-9]*|[0-9a-f-]{16,}|0x[0-9a-f]+|[0-9]+(?:\.[0-9]+)?|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|[^\x00-\x7f]+/g;
+            return x.replace(re, "?");
+        };
+        const fillSet = (ctx) => {
+            const line = denoise(ctx.line);
+            //console.log(line);
+            for (let i = 0; i <= line.length - 3; i++) {
+                set.add(line.slice(i, i + 3));
+            }
+            return fillSet;
+        };
+        machine.run(stream, fillSet, (err) => {
+            if (err) {
+                console.log("generate trigrams", err);
+                res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
+                return;
+            }
+            storeTrigrams(namespace, id, set, (err) => {
+                if (err) {
+                    console.log("store trigrams", err);
+                    res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
+                    return;
+                }
+                findSimilar(set, (err, sim) => {
+                    if (err) {
+                        console.log("find similar", err);
+                        res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
+                        return;
+                    }
+                    res.json({
+                        similar: sim,
+                    });
+                });
+            });
+        });
+    });
 });
 
 app.post("/-/go-to-url", function(req, res) {

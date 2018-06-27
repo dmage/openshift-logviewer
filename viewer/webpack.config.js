@@ -1,7 +1,7 @@
 const path = require("path");
 
 module.exports = {
-    entry: ["core-js/fn/promise", "./src/index.js"],
+    entry: ["core-js/fn/promise", "whatwg-fetch", "./src/index.js"],
     module: {
         rules: [
             {
