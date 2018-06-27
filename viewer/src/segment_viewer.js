@@ -2,23 +2,25 @@ import React from "react";
 import interpretANSI from "./interpret_ansi";
 import { filterGitHubGoLink, filterHighlight, filterHTML } from "./line_filters";
 
-export function httpDataSource(offset, length) {
-    return new Promise((resolve, reject) => {
-        let request = new XMLHttpRequest();
-        request.open('GET', '?resource=raw', true);
-        request.setRequestHeader("Range", "bytes=" + offset + "-" + (offset + length - 1));
-        request.onload = () => {
-            if (request.status >= 200 && request.status < 400) {
-                resolve(request.responseText);
-            } else {
-                reject(new Error("unable to load data, request status code: " + request.status));
-            }
-        };
-        request.onerror = function() {
-            reject(new Error("connection error"));
-        };
-        request.send();
-    });
+export function httpDataSource(url) {
+    return function(offset, length) {
+        return new Promise((resolve, reject) => {
+            let request = new XMLHttpRequest();
+            request.open('GET', url, true);
+            request.setRequestHeader("Range", "bytes=" + offset + "-" + (offset + length - 1));
+            request.onload = () => {
+                if (request.status >= 200 && request.status < 400) {
+                    resolve(request.responseText);
+                } else {
+                    reject(new Error("unable to load data, request status code: " + request.status));
+                }
+            };
+            request.onerror = function(e) {
+                reject(new Error("unable to load data: " + (request.statusText !== "" ? request.statusText : "connection error")));
+            };
+            request.send();
+        });
+    };
 }
 
 export class Line extends React.Component {
@@ -42,10 +44,23 @@ export class Text extends React.Component {
         super(props);
         this.state = {
             loaded: false,
-            lines: ["loading..."],
+            error: "",
+            lines: [],
         };
+        this.attempts = 0;
+        this.error = "";
+        this.delay = 0;
+        this.reloadTimer = null;
     }
-    componentDidMount() {
+    updateError() {
+        this.setState({
+            error: ["🛑 " + this.error + " (next attempt in " + this.delay + " seconds)"],
+        });
+    }
+    loadLines() {
+        this.setState({
+            error: "loading...",
+        });
         this.props.dataSource(this.props.offset, this.props.length)
             .then((response) => {
                 const trail = response.search(/[^\n]*\r\x1b\[0?K$/);
@@ -66,13 +81,39 @@ export class Text extends React.Component {
                 });
             })
             .catch((err) => {
-                this.setState({
-                    loaded: true,
-                    lines: [err.toString()],
-                });
+                this.error = err.toString();
+                this.delay = (1 << this.attempts);
+                if (this.delay > 30) {
+                    this.delay = 30;
+                }
+                this.attempts++;
+                this.updateError();
+                const waiter = () => {
+                    this.delay--;
+                    if (this.delay === 0) {
+                        this.loadLines();
+                    } else {
+                        this.updateError();
+                        this.reloadTimer = setTimeout(waiter, 1000);
+                    }
+                };
+                this.reloadTimer = setTimeout(waiter, 1000);
             });
     }
+    componentDidMount() {
+        this.loadLines()
+    }
+    componentWillUnmount() {
+        if (this.reloadTimer !== null) {
+            clearTimeout(this.reloadTimer);
+        }
+    }
     render() {
+        if (!this.state.loaded) {
+            return (
+                <ul><li>{this.state.error}</li></ul>
+            );
+        }
         return (
             <ul>
                 {this.state.lines.map((line, i) => {
@@ -86,6 +127,9 @@ export class Text extends React.Component {
 }
 
 export class Content extends React.Component {
+    static defaultProps = {
+        segments: [],
+    }
     render() {
         let offset = 0;
         let segments = [];
@@ -97,10 +141,16 @@ export class Content extends React.Component {
                     dataSource={this.props.dataSource}
                     key={"gap-" + i} />);
             }
-            segments.push(<Segment
-                {...segment}
-                dataSource={(off, len) => this.props.dataSource(segment.offset + off, len)}
-                key={"item-" + i} />);
+            let id = this.props.id + ":" + segment.offset;
+            let selected = (this.props.selected == id || this.props.selected.startsWith(id + ":"));
+            segments.push(<Segment {...segment} id={id} collapsed={!selected} scrollTo={this.props.selected == id} key={"item-" + i}>
+                <Content
+                    {...segment}
+                    id={id}
+                    selected={this.props.selected}
+                    dataSource={(off, len) => this.props.dataSource(segment.offset + off, len)}
+                    />
+            </Segment>);
             offset = segment.offset + segment.length;
         });
         if (offset < this.props.length) {
@@ -122,35 +172,42 @@ export class Content extends React.Component {
 export class Segment extends React.Component {
     static defaultProps = {
         metadata: {},
-        segments: [],
     }
     constructor(props) {
         super(props);
         this.state = {
-            collapsed: true,
+            collapsed: this.props.collapsed,
         };
     }
-    render() {
-        let status = this.props.metadata.status || "unknown";
-        if (this.state.collapsed) {
-            return (
-                <div className="segment">
-                    <div className={"segment-header segment-status-"+status} onClick={() => this.setState({collapsed: false})}>
-                        <div className="segment-box">▶</div><div className="segment-title">{this.props.metadata.name}</div>
-                    </div>
-                </div>
-            );
-        } else {
-            return (
-                <div className="segment">
-                    <div className={"segment-header segment-status-"+status} onClick={() => this.setState({collapsed: true})}>
-                        <div className="segment-box">▼</div><div className="segment-title">{this.props.metadata.name}</div>
-                    </div>
-                    <div className="segment-more">
-                        <Content {...this.props} />
-                    </div>
-                </div>
-            );
+    componentDidMount() {
+        if (this.props.scrollTo) {
+            setTimeout(() => {
+                this.node.scrollIntoView();
+            }, 500);
         }
+    }
+    render() {
+        const status = this.props.metadata.status || "unknown";
+        let fragment = this.props.id, idx = fragment.indexOf(":");
+        if (idx !== -1) {
+            fragment = fragment.slice(idx + 1);
+        }
+        const id = "segment:" + fragment;
+        let box;
+        if (this.state.collapsed) {
+            box = <div className="segment-box">▶</div>;
+        } else {
+            box = <div className="segment-box">▼</div>;
+        }
+        return (
+            <div className="segment" id={id} ref={el => this.node = el}>
+                <div className={"segment-header segment-status-"+status} onClick={() => this.setState({collapsed: !this.state.collapsed})}>
+                    {box}<div className="segment-title">{this.props.metadata.name} <a href={"#" + id} style={{display: "block", float: "right"}} onClick={(e) => e.stopPropagation()}>§</a></div>
+                </div>
+                {this.state.collapsed ? [] : <div className="segment-more">
+                    {this.props.children}
+                </div>}
+            </div>
+        );
     }
 }

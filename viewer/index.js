@@ -178,7 +178,7 @@ function serveIndexPage(namespace, req, res) {
         }
         res.render("log", {
             APP_ROOT: APP_ROOT,
-            title: namespace,
+            namespace: namespace,
             data: data,
         });
     });

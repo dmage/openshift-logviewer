@@ -1,12 +1,13 @@
 doctype html
 html
   head
-    title= title
+    title= namespace
     link(rel="stylesheet/less" type="text/css" href=APP_ROOT+"/-/assets/styles.less")
     script(src="//cdnjs.cloudflare.com/ajax/libs/less.js/3.0.0/less.min.js")
   body
     script.
       var APP_ROOT = !{JSON.stringify(APP_ROOT)};
+      var namespace = !{JSON.stringify(namespace)};
       var segment = !{data};
     #root
     script(src=APP_ROOT+"/-/assets/bundle.js")
