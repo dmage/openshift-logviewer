@@ -229,6 +229,12 @@ export class Segment extends React.Component {
             collapsed: this.props.collapsed,
         };
     }
+    focused() {
+        document.querySelectorAll(".segment-focused").forEach(el => {
+            el.classList.remove("segment-focused");
+        });
+        this.header.classList.add("segment-focused");
+    }
     componentDidMount() {
         if (this.props.scrollTo) {
             setTimeout(() => {
@@ -251,7 +257,14 @@ export class Segment extends React.Component {
         }
         return (
             <div className="segment" id={id} ref={el => this.node = el}>
-                <div className={"segment-header segment-status-"+status + (this.props.scrollTo ? " segment-selected" : "")} onClick={() => this.setState({collapsed: !this.state.collapsed})}>
+                <div
+                    className={"segment-header segment-status-"+status + (this.props.scrollTo ? " segment-focused" : "")}
+                    tabIndex="0"
+                    onClick={() => this.setState({collapsed: !this.state.collapsed})}
+                    onKeyPress={e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); this.setState({collapsed: !this.state.collapsed}); } }}
+                    onFocus={() => this.focused()}
+                    ref={el => this.header = el}
+                >
                     {box}<div className="segment-title">{this.props.metadata.name}<Info id={this.props.id} metadata={this.props.metadata} segments={this.props.segments} /></div>
                 </div>
                 {this.state.collapsed ? [] : <div className="segment-more">
