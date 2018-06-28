@@ -173,7 +173,6 @@ export class Info extends React.Component {
     constructor(props) {
         super(props);
         this.state = {
-            loading: true,
             similar: [],
         };
     }
@@ -209,7 +208,10 @@ export class Info extends React.Component {
         const id = "segment:" + fragment;
         return (
             <div style={{display: "block", float: "right"}} onClick={(e) => e.stopPropagation()}>
-                <span style={{opacity: 0.1}}>{this.state.similar.length > 0 ? "" + this.state.similar.length + " " : ""}</span>
+                {this.state.similar.length > 0 ?
+                    <a href={"?resource=similar&segment=" + fragment} style={{opacity: 0.2}}>{this.state.similar.length}</a> :
+                    []}
+                {" "}
                 <a href={"#" + id}>§</a>
             </div>
         );

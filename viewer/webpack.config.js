@@ -1,7 +1,10 @@
 const path = require("path");
 
 module.exports = {
-    entry: ["core-js/fn/promise", "whatwg-fetch", "./src/index.js"],
+    entry: {
+        log: ["core-js/fn/promise", "whatwg-fetch", "./src/index.js"],
+        similar: ["core-js/fn/promise", "whatwg-fetch", "./src/similar.js"],
+    },
     module: {
         rules: [
             {
@@ -16,6 +19,17 @@ module.exports = {
     },
     output: {
         path: path.resolve(__dirname, "assets"),
-        filename: "bundle.js",
+        filename: "[name].bundle.js",
+    },
+    optimization: {
+        splitChunks: {
+            cacheGroups: {
+                commons: {
+                    name: "commons",
+                    chunks: "initial",
+                    minChunks: 2,
+                },
+            },
+        },
     },
 };

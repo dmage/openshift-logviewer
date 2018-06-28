@@ -25,6 +25,7 @@ if (typeof RESOURCES_ROOT === "undefined" || RESOURCES_ROOT === "") {
 }
 
 const APP_ROOT = process.env.DIGDOWN_APP_ROOT || "";
+const GA_TRACKING_ID = process.env.DIGDOWN_GA_TRACKING_ID || "";
 
 function mkdirP(p, callback) {
     const mode = 0777 & (~process.umask());
@@ -136,6 +137,7 @@ function getID(permanentURL) {
 function serveHomePage(req, res) {
     res.render("home", {
         APP_ROOT: APP_ROOT,
+        GA_TRACKING_ID: GA_TRACKING_ID,
     });
 }
 
@@ -180,8 +182,25 @@ function serveIndexPage(namespace, req, res) {
         }
         res.render("log", {
             APP_ROOT: APP_ROOT,
+            GA_TRACKING_ID: GA_TRACKING_ID,
             namespace: namespace,
             data: data,
+        });
+    });
+}
+
+function serveSimilarPage(namespace, req, res) {
+    readSegments(namespace, (err, data) => {
+        if (err) {
+            console.log("read segments", err);
+            res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
+            return;
+        }
+        res.render("similar", {
+            APP_ROOT: APP_ROOT,
+            GA_TRACKING_ID: GA_TRACKING_ID,
+            namespace: namespace,
+            segment: req.query.segment || "",
         });
     });
 }
@@ -237,7 +256,7 @@ function findSimilar(trigrams, callback) {
                 return;
             }
             let row = rows[i];
-            if (trigramsDiff(trigrams, new Set(JSON.parse(row.trigrams))) < 10) {
+            if (trigramsDiff(trigrams, new Set(JSON.parse(row.trigrams))) < 20) {
                 let pos = row.id.indexOf(":");
                 result.push({
                     namespace: row.id.slice(0, pos),
@@ -341,6 +360,8 @@ app.get("*", function(req, res) {
         serveIndexPage(path, req, res);
     } else if (resource === "raw") {
         serveRaw(path, req, res);
+    } else if (resource === "similar") {
+        serveSimilarPage(path, req, res);
     } else {
         res.status(400).type("text/plain").send("400 unknown resource\n");
         return;
