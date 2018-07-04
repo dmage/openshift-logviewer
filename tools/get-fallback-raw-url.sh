@@ -6,8 +6,12 @@ ID=${1?usage: $0 JOB_NAME/BUILD_ID}
 JOB_NAME=${ID%/*}
 BUILD_ID=${ID##*/}
 
+if [ -z "${BUILD_ID##*[!0-9]*}" ]; then
+    echo "Unable to get fallback URL for ID $ID" >&2
+    exit 1
+fi
 if [ "$BUILD_ID" -gt 100000 ]; then
-    echo "Unable to get fallback URL for $ID" >&2
+    echo "Unable to get fallback URL for ID $ID" >&2
     exit 1
 fi
 

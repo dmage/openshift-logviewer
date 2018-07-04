@@ -1,8 +1,9 @@
 TOOLS=./tools
+RECORD_FAILURES=./database/record-failures.js
 SEGMENTATOR=./segmentator/run.js
 
 define download
-curl -fsS $(1) >$(2).tmp && mv $(2).tmp $(2)
+curl -fsS $(1) >$(2).$$$$.tmp && mv $(2).$$$$.tmp $(2)
 endef
 
 all: db/flakes.txt
@@ -29,7 +30,7 @@ db/:
 db/flakes.txt: cache/flakes.current.txt | db/
 	touch db/flakes.txt
 	wc -l db/flakes.txt
-	sort -u $@ $< >$@.tmp && mv $@.tmp $@
+	sort -u $@ $< >$@.tmp && (diff -u $@ $@.tmp | grep '^+'; true) && mv $@.tmp $@
 	wc -l db/flakes.txt
 
 jobs/:
@@ -49,8 +50,18 @@ jobs/%/raw: jobs/%/info.json
 .PRECIOUS: jobs/%/raw
 
 jobs/%/segments.json: jobs/%/raw
-	$(SEGMENTATOR) $< >$@.tmp && mv $@.tmp $@
+	$(SEGMENTATOR) $< >$@.$$$$.tmp && mv $@.$$$$.tmp $@
+	$(RECORD_FAILURES) $*
 .PRECIOUS: jobs/%/segments.json
+
+refresh:
+	set -e; find ./jobs -type f -name 'raw' | while read -r f; do \
+		f=$${f#./jobs/}; f=$${f%/raw}; \
+		echo $$f; \
+		echo seg; $(SEGMENTATOR) ./jobs/$$f/raw >./jobs/$$f/segments.json.$$$$.tmp && mv ./jobs/$$f/segments.json.$$$$.tmp ./jobs/$$f/segments.json; \
+		echo rec; $(RECORD_FAILURES) $$f; \
+	done
+.PHONY: refresh
 
 clean:
 	find . -name '*.tmp' -or -name 'segments.json' -print -delete

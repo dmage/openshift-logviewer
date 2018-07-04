@@ -7,8 +7,7 @@ const morgan = require("morgan");
 const fs = require("fs");
 const path = require("path");
 const child_process = require("child_process");
-const segment = require("digdown/segment");
-const machine = require("digdown/machine");
+const database = require("database");
 
 const app = express();
 app.enable("strict routing");
@@ -16,7 +15,7 @@ app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "pug");
 app.set("trust proxy", "loopback, linklocal, uniquelocal");
 app.use(bodyParser.urlencoded({ extended: true }));
-app.use(morgan("combined"));
+app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":response-time ms" ":referrer" ":user-agent"'));
 
 const RESOURCES_ROOT = process.env.DIGDOWN_RESOURCES_ROOT;
 if (typeof RESOURCES_ROOT === "undefined" || RESOURCES_ROOT === "") {
@@ -217,58 +216,6 @@ app.get("/", function(req, res) {
     serveHomePage(req, res);
 });
 
-const sqlite3 = require("sqlite3").verbose();
-let db = new sqlite3.Database(RESOURCES_ROOT + "/trigrams.db");
-db.run("CREATE TABLE trigrams(id text, trigrams text, PRIMARY KEY (id))", (err) => {
-    if (err && err.errno !== 1) {
-        throw err;
-    }
-    // TODO(dmage): start listener here.
-});
-function intersectionSize(as, bs) {
-    let c = 0;
-    for (let a of as) {
-        if (bs.has(a)) {
-            c++;
-        }
-    }
-    return c;
-}
-function trigramsDiff(as, bs) {
-    const al = as.size, bl = bs.size;
-    const m = (al > bl ? al : bl);
-    const d = m - intersectionSize(as, bs);
-    return d;
-}
-function storeTrigrams(namespace, id, trigrams, callback) {
-    db.run("REPLACE INTO trigrams(id, trigrams) VALUES(?, ?)", [namespace + ":" + id, JSON.stringify(Array.from(trigrams))], callback);
-}
-function findSimilar(trigrams, callback) {
-    db.all("SELECT * FROM trigrams", [], (err, rows) => {
-        if (err) {
-            callback(err);
-            return;
-        }
-        let result = [];
-        const cb = (i) => {
-            if (i === rows.length) {
-                callback(err, result);
-                return;
-            }
-            let row = rows[i];
-            if (trigramsDiff(trigrams, new Set(JSON.parse(row.trigrams))) < 20) {
-                let pos = row.id.indexOf(":");
-                result.push({
-                    namespace: row.id.slice(0, pos),
-                    segment: row.id.slice(pos + 1),
-                });
-            }
-            setTimeout(() => cb(i + 1), 0);
-        };
-        cb(0);
-    });
-}
-
 app.get("/-/info", function(req, res) {
     const namespace = req.query.namespace;
      if (!safePath(namespace)) {
@@ -303,33 +250,21 @@ app.get("/-/info", function(req, res) {
             });
             return;
         }
-        const stream = segment.open(RESOURCES_ROOT + "/" + namespace + "/raw", base, seg.length);
-        let set = new Set();
-        const denoise = x => {
-            const re = /(?:[=.-][A-Za-z0-9]+)+|: [A-Za-z0-9]*[0-9][A-Za-z0-9]*|[0-9a-f-]{16,}|0x[0-9a-f]+|[0-9]+(?:\.[0-9]+)?|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|[^\x00-\x7f]+/g;
-            return x.replace(re, "?");
-        };
-        const fillSet = (ctx) => {
-            const line = denoise(ctx.line);
-            //console.log(line);
-            for (let i = 0; i <= line.length - 3; i++) {
-                set.add(line.slice(i, i + 3));
-            }
-            return fillSet;
-        };
-        machine.run(stream, fillSet, (err) => {
+        let name = seg.metadata.name || id;
+
+        database.buildTrigrams(RESOURCES_ROOT + "/" + namespace + "/raw", base, seg.length, (err, trigrams) => {
             if (err) {
                 console.log("generate trigrams", err);
                 res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
                 return;
             }
-            storeTrigrams(namespace, id, set, (err) => {
+            //database.storeTrigrams(db, namespace, id, name, trigrams, (err) => {
                 if (err) {
                     console.log("store trigrams", err);
                     res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
                     return;
                 }
-                findSimilar(set, (err, sim) => {
+                database.findSimilarTrigrams(db, trigrams, (err, sim) => {
                     if (err) {
                         console.log("find similar", err);
                         res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
@@ -339,7 +274,7 @@ app.get("/-/info", function(req, res) {
                         similar: sim,
                     });
                 });
-            });
+            //});
         });
     });
 });
@@ -348,9 +283,17 @@ app.post("/-/go-to-url", function(req, res) {
     serveGoToURL(req, res);
 });
 
+app.get("/favicon.ico", function(req, res) {
+    res.status(404).type("text/plain").send("404 not found\n");
+});
+
 app.get("*", function(req, res) {
-    console.log(req.url);
-    let path = req.path.replace(/^\/+|\/+$/g, "").replace(/\/+/, "/");
+    let path = req.path.replace(/^\/+/, "").replace(/\/+/, "/");
+    if (!path.endsWith("/")) {
+        res.redirect(307, `${APP_ROOT}/${path}/`);
+        return;
+    }
+    path = path.replace(/\/$/, "");
     if (!safePath(path)) {
         res.status(404).type("text/plain").send("404 not found\n");
         return;
@@ -368,6 +311,13 @@ app.get("*", function(req, res) {
     }
 });
 
-app.listen(8080, function () {
-  console.log("Viewer is listening on http://localhost:8080/")
-})
+let db;
+database.init(RESOURCES_ROOT + "/trigrams.db", (err, d) => {
+    if (err) {
+        throw err;
+    }
+    db = d;
+    app.listen(8080, function () {
+      console.log("Viewer is listening on http://localhost:8080/")
+    })
+});
