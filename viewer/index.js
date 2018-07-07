@@ -23,6 +23,8 @@ if (typeof RESOURCES_ROOT === "undefined" || RESOURCES_ROOT === "") {
     process.exit(1);
 }
 
+const TOOLS = RESOURCES_ROOT + "/../tools";
+
 const APP_ROOT = process.env.DIGDOWN_APP_ROOT || "";
 const GA_TRACKING_ID = process.env.DIGDOWN_GA_TRACKING_ID || "";
 
@@ -141,34 +143,15 @@ function serveHomePage(req, res) {
 }
 
 function serveGoToURL(req, res) {
-    let permanentURL = getPermanentURL(req.body.url);
-    if (typeof permanentURL === "undefined") {
-        res.status(400).type("text/plain").send("Sorry, but the entered URL doesn't match to any known patterns.\n");
-        return;
-    }
-    let id = getID(permanentURL);
-    if (typeof id === "undefined") {
-        res.status(500).type("text/plain").send("I failed to extract BUILD_NAME/BUILD_NUMBER from this URL. It's a bug.\n");
-        return;
-    }
-    resourceStat(id, "info.json", (err) => {
+    child_process.execFile(TOOLS + "/save-url.sh", [req.body.url], {
+        cwd: ".",
+    }, (err, stdout, stderr) => {
         if (err) {
-            if (err.code !== "ENOENT") {
-                console.log("read info.json for", id, err);
-                res.status(500).type("text/plain").send("Whoops, something went wrong.\n");
-                return;
-            }
-            resourceWrite(id, "info.json", JSON.stringify({id: id, job_url: permanentURL}), (err) => {
-                if (err) {
-                    console.log("write info.json for", id, err);
-                    res.status(500).type("text/plain").send("I cannot save your URL. :-(\n");
-                    return;
-                }
-                res.redirect(303, `${APP_ROOT}/${id}/`);
-            });
+            console.log("save url", err);
+            res.status(400).type("text/plain").send(stderr);
             return;
         }
-        res.redirect(303, `${APP_ROOT}/${id}/`);
+        res.redirect(303, `${APP_ROOT}/${stdout.trim()}/`);
     });
 }
 

@@ -18,11 +18,16 @@ cache/prowjobs.txt: cache/prowjobs.json $(TOOLS)/jobs.sh
 	$(TOOLS)/jobs.sh $< >$@
 
 cache/prowjobs.success.txt: cache/prowjobs.txt
-	cat $< | grep success | cut -f1-4 | sort -u >$@
+# append \t to avoid collisions in the cache/flakes.current.txt rule
+	grep success$$ $< | cut -f1-4 | sort -u | sed "s/\$$/$$(printf '\t')/" >$@
 .INTERMEDIATE: cache/prowjobs.success.txt
 
-cache/flakes.current.txt: cache/prowjobs.txt cache/prowjobs.success.txt
-	grep -Ff cache/prowjobs.success.txt cache/prowjobs.txt | grep failure >$@
+cache/prowjobs.failure.txt: cache/prowjobs.txt
+	grep failure$$ $< | cut -f1-5 | sort -u >$@
+.INTERMEDIATE: cache/prowjobs.failure.txt
+
+cache/flakes.current.txt: cache/prowjobs.success.txt cache/prowjobs.failure.txt
+	grep -Ff cache/prowjobs.success.txt cache/prowjobs.failure.txt >$@
 
 db/:
 	mkdir -p $@
@@ -30,38 +35,53 @@ db/:
 db/flakes.txt: cache/flakes.current.txt | db/
 	touch db/flakes.txt
 	wc -l db/flakes.txt
-	sort -u $@ $< >$@.tmp && (diff -u $@ $@.tmp | grep '^+'; true) && mv $@.tmp $@
+	sort -u $@ $< >$@.$$$$.tmp && (diff -u $@ $@.$$$$.tmp | grep '^+'; true) && mv $@.$$$$.tmp $@
 	wc -l db/flakes.txt
 
 jobs/:
 	mkdir -p $@
 
-jobs/%/info.json: | cache/prowjobs.txt jobs/
+jobs/%/prowjob.json: | jobs/
 	mkdir -p "$(dir $@)"
-	$(TOOLS)/make-info.sh $* >$@.tmp && mv $@.tmp $@
-.PRECIOUS: jobs/%/info.json
+	$(TOOLS)/makefile.sh $@ $(TOOLS)/select-prowjob.sh ./cache/prowjobs.json $* || true
+.PRECIOUS: jobs/%/prowjob.json
 
-jobs/%/raw: jobs/%/info.json
-	if OUT=$$(curl -fsS $(shell $(TOOLS)/get-info-raw-url.sh jobs/$*/info.json) -o $@.tmp 2>&1); then \
-		mv $@.tmp $@; \
-	elif echo "$$OUT" | grep -q "The requested URL returned error: 404"; then \
-		curl -fsS $$($(TOOLS)/get-fallback-raw-url.sh $*) -o $@.tmp && mv $@.tmp $@; \
-	fi
+jobs/%/openshift-gce.url: | jobs/%/prowjob.json
+	test -e $@ || ! test -e ./jobs/$*/prowjob.json || $(TOOLS)/makefile.sh $@ $(TOOLS)/check-url.sh openshift-gce "$$(jq -r .status.url ./jobs/$*/prowjob.json)" || true
+.PRECIOUS: jobs/%/openshift-gce.url
+
+jobs/%/openshift-gce.clone-records.json: | jobs/%/openshift-gce.url
+	test -e $| && $(TOOLS)/makefile.sh $@ curl -fsS "$$(cat $| | sed -n 's,build-log\.txt$$,clone-records.json,p')" || true
+.PRECIOUS: jobs/%/openshift-gce.clone-records.json
+
+jobs/%/jenkins.url:
+	test -e $@ || $(TOOLS)/makefile.sh $@ $(TOOLS)/check-url.sh jenkins "https://ci.openshift.redhat.com/jenkins/job/$*/consoleText" || true
+.PRECIOUS: jobs/%/jenkins.url
+
+jobs/%/raw: | jobs/%/openshift-gce.url jobs/%/jenkins.url
+	err=1; for url in $|; do \
+		test -e "$$url" && cat "$$url" >&2 && $(TOOLS)/makefile.sh $@ curl -fsS "$$(cat "$$url")" && err=0 && break || err=$$?; \
+	done && exit $$err
 .PRECIOUS: jobs/%/raw
 
-jobs/%/segments.json: jobs/%/raw
-	$(SEGMENTATOR) $< >$@.$$$$.tmp && mv $@.$$$$.tmp $@
+jobs/%/segments.json: jobs/%/raw $(if $(FORCE),FORCE)
+	$(TOOLS)/makefile.sh $@ $(SEGMENTATOR) $<
 	$(RECORD_FAILURES) $*
 .PRECIOUS: jobs/%/segments.json
 
-refresh:
+refresh: cache/prowjobs.json
 	set -e; find ./jobs -type f -name 'raw' | while read -r f; do \
 		f=$${f#./jobs/}; f=$${f%/raw}; \
-		echo $$f; \
-		echo seg; $(SEGMENTATOR) ./jobs/$$f/raw >./jobs/$$f/segments.json.$$$$.tmp && mv ./jobs/$$f/segments.json.$$$$.tmp ./jobs/$$f/segments.json; \
-		echo rec; $(RECORD_FAILURES) $$f; \
+		$(MAKE) jobs/$$f/segments.json jobs/$$f/prowjob.json jobs/$$f/openshift-gce.url jobs/$$f/openshift-gce.clone-records.json; \
 	done
 .PHONY: refresh
+
+load-flakes: db/flakes.txt
+	set -e; cat ./db/flakes.txt | cut -d"$$(printf '\t')" -f4-5 | while read -r a b; do \
+		$(MAKE) jobs/$$a/$$b/segments.json || true; \
+		touch jobs/$$a/$$b/flake.flag; \
+	done
+.PHONY: load-flakes
 
 clean:
 	find . -name '*.tmp' -or -name 'segments.json' -print -delete

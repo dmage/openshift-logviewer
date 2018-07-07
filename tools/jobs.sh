@@ -17,4 +17,4 @@ select((.spec.agent == "jenkins" or .spec.agent == "kubernetes") and (.spec.refs
         build_id,
         url
     }
-} | "\(.spec.refs.org)/\(.spec.refs.repo)\t\(.spec.refs.base_sha)+\(.spec.refs.sha)\t\(.spec.agent)\t\(.spec.job)\t\(.status.build_id)\t\(.status.url)\t\(.status.state)"'
+} | "\(.spec.refs.org)/\(.spec.refs.repo)\t\(.spec.refs.base_sha)+\(.spec.refs.sha)\t\(.spec.agent)\t\(.spec.job)\t\(.status.build_id)\t\(.status.state)"'

@@ -38,7 +38,7 @@ class App extends React.Component {
         }
         return (
             <div>
-                <h1>Similar</h1>
+                <h1>Similar ({this.state.similar.length})</h1>
                 <ul className="similar">
                 {this.state.similar.map((x, i) => {
                     return <li key={i}><div>{x.namespace}</div><div><a href={APP_ROOT + "/" + x.namespace + "/#segment:" + x.segment}>{x.name}</a></div></li>;

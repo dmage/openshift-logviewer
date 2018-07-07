@@ -13,6 +13,7 @@ RUN apt-get install -y make nodejs jq
 WORKDIR /app
 ADD . .
 RUN cd ./viewer && npm install && npm run build && cd .. &&\
+    cd ./database && npm install && cd .. &&\
     cd ./segmentator && npm install ../digdown && cd ..
 
 VOLUME /app/jobs

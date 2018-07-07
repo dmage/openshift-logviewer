@@ -28,10 +28,11 @@ module.exports.buildTrigrams = function(file, offset, length, callback) {
 module.exports.init = function init(filename, callback) {
     let db = new sqlite3.Database(filename);
     db.run(`CREATE TABLE IF NOT EXISTS trigrams(
-        namespace text,
-        segment text,
-        name text,
-        trigrams text,
+        namespace TEXT NOT NULL,
+        segment TEXT NOT NULL,
+        name TEXT NOT NULL,
+        trigrams TEXT NOT NULL,
+        size INTEGER NOT NULL,
         PRIMARY KEY (namespace, segment)
     )`, (err) => {
         callback(err, db);
@@ -64,16 +65,18 @@ function trigramsDistance(as, bs) {
 }
 
 module.exports.storeTrigrams = function storeTrigrams(db, namespace, segment, name, trigrams, callback) {
-    db.run("REPLACE INTO trigrams(namespace, segment, name, trigrams) VALUES(?, ?, ?, ?)", [
+    db.run("REPLACE INTO trigrams(namespace, segment, name, trigrams, size) VALUES(?, ?, ?, ?, ?)", [
         namespace,
         segment,
         name,
         trigramsSerialize(trigrams),
+        trigrams.size,
     ], callback);
 };
 
 module.exports.findSimilarTrigrams = function findSimilarTrigrams(db, trigrams, callback) {
-    db.all("SELECT * FROM trigrams", [], (err, rows) => {
+    const n = 20;
+    db.all("SELECT * FROM trigrams WHERE ABS(size - ?) < ?", [trigrams.size, n], (err, rows) => {
         if (err) {
             callback(err);
             return;
@@ -85,7 +88,7 @@ module.exports.findSimilarTrigrams = function findSimilarTrigrams(db, trigrams, 
                 return;
             }
             let row = rows[i];
-            if (trigramsDistance(trigrams, trigramsDeserialize(row.trigrams)) < 20) {
+            if (trigramsDistance(trigrams, trigramsDeserialize(row.trigrams)) < n) {
                 result.push({
                     namespace: row.namespace,
                     segment: row.segment,
