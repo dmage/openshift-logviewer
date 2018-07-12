@@ -26,7 +26,7 @@ function result(type, id, url) {
     }
 }
 
-let match = /^https?:\/\/openshift-gce-devel\.appspot\.com\/+build\/+origin-ci-test\/+pr-logs\/+pull\/+([A-Za-z0-9\/_-]+)\/+([A-Za-z0-9_-]+\/+[0-9]+)\/*(\?[A-Za-z0-9=%&._-]*)?(#.*)?$/.exec(url);
+let match = /^https?:\/\/openshift-gce-devel\.appspot\.com\/+build\/+origin-ci-test\/+pr-logs\/+pull\/+([A-Za-z0-9\/_-]+)\/+([A-Za-z0-9._-]+\/+[0-9]+)\/*(\?[A-Za-z0-9=%&._-]*)?(#.*)?$/.exec(url);
 if (match !== null) {
     const pr = match[1];
     const id = match[2].replace(/\/\/+/g, "/");
@@ -34,13 +34,13 @@ if (match !== null) {
 }
 
 // https://openshift-gce-devel.appspot.com/build/origin-ci-test/logs/test_branch_origin_cmd/2190/
-match = /^https?:\/\/openshift-gce-devel\.appspot\.com\/+build\/+origin-ci-test\/+logs\/+([A-Za-z0-9_-]+\/+[0-9]+)\/*(\?[A-Za-z0-9=%&._-]*)?(#.*)?$/.exec(url);
+match = /^https?:\/\/openshift-gce-devel\.appspot\.com\/+build\/+origin-ci-test\/+logs\/+([A-Za-z0-9._-]+\/+[0-9]+)\/*(\?[A-Za-z0-9=%&._-]*)?(#.*)?$/.exec(url);
 if (match !== null) {
     const id = match[1].replace(/\/\/+/g, "/");
     result("openshift-gce", id, `https://storage.googleapis.com/origin-ci-test/logs/${id}/build-log.txt`);
 }
 
-match = /^https?:\/\/ci\.openshift\.redhat\.com\/+jenkins\/+job\/+([A-Za-z0-9_-]+\/+[0-9]+)(\/+[A-Za-z0-9\/=%._-]*)?(#.*)?$/.exec(url);
+match = /^https?:\/\/ci\.openshift\.redhat\.com\/+jenkins\/+job\/+([A-Za-z0-9,_-]+\/+[0-9]+)(\/+[A-Za-z0-9\/=%._-]*)?(#.*)?$/.exec(url);
 if (match !== null) {
     const id = match[1].replace(/\/\/+/g, "/");
     result("jenkins", id, `https://ci.openshift.redhat.com/jenkins/job/${id}/consoleText`);

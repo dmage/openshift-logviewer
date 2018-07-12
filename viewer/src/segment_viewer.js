@@ -206,12 +206,12 @@ export class Info extends React.Component {
             fragment = fragment.slice(idx + 1);
         }
         const id = "segment:" + fragment;
+        const flake = this.state.similar.some(x => x.flake);
         return (
             <div style={{display: "block", float: "right"}} onClick={(e) => e.stopPropagation()}>
                 {this.state.similar.length > 0 ?
-                    <a href={"?resource=similar&segment=" + fragment} style={{opacity: 0.2}}>{this.state.similar.length}</a> :
+                    [<a href={"?resource=similar&segment=" + fragment}>[{flake ? [<span className="flake-marker">flake?</span>, " "] : []}{this.state.similar.length}]</a>, " "] :
                     []}
-                {" "}
                 <a href={"#" + id}>§</a>
             </div>
         );

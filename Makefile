@@ -27,7 +27,7 @@ cache/prowjobs.failure.txt: cache/prowjobs.txt
 .INTERMEDIATE: cache/prowjobs.failure.txt
 
 cache/flakes.current.txt: cache/prowjobs.success.txt cache/prowjobs.failure.txt
-	grep -Ff cache/prowjobs.success.txt cache/prowjobs.failure.txt >$@
+	grep -Ff cache/prowjobs.success.txt cache/prowjobs.failure.txt >$@ || true
 
 db/:
 	mkdir -p $@
@@ -77,11 +77,17 @@ refresh: cache/prowjobs.json
 .PHONY: refresh
 
 load-flakes: db/flakes.txt
-	set -e; cat ./db/flakes.txt | cut -d"$$(printf '\t')" -f4-5 | while read -r a b; do \
+	set -e; cat $< | cut -d"$$(printf '\t')" -f4-5 | while read -r a b; do \
 		$(MAKE) jobs/$$a/$$b/segments.json || true; \
 		touch jobs/$$a/$$b/flake.flag; \
 	done
 .PHONY: load-flakes
+
+load-failures: cache/prowjobs.failure.txt
+	set -e; cat $< | cut -d"$$(printf '\t')" -f4-5 | while read -r a b; do \
+		$(MAKE) jobs/$$a/$$b/segments.json || true; \
+	done
+.PHONY: load-failures
 
 clean:
 	find . -name '*.tmp' -or -name 'segments.json' -print -delete

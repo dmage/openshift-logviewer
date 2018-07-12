@@ -7,6 +7,7 @@ const morgan = require("morgan");
 const fs = require("fs");
 const path = require("path");
 const child_process = require("child_process");
+const util = require("util");
 const database = require("database");
 
 const app = express();
@@ -61,8 +62,8 @@ function safePath(s) {
     return /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*/.test(s);
 }
 
-function resourceStat(namespace, name, callback) {
-    fs.stat(RESOURCES_ROOT + "/" + namespace + "/" + name, callback);
+function resourceStat(namespace, name) {
+    return util.promisify(fs.stat)(RESOURCES_ROOT + "/" + namespace + "/" + name);
 }
 
 function resourceRead(namespace, name, callback) {
@@ -147,7 +148,7 @@ function serveGoToURL(req, res) {
         cwd: ".",
     }, (err, stdout, stderr) => {
         if (err) {
-            console.log("save url", err);
+            console.error("save url", err);
             res.status(400).type("text/plain").send(stderr);
             return;
         }
@@ -158,7 +159,7 @@ function serveGoToURL(req, res) {
 function serveIndexPage(namespace, req, res) {
     readSegments(namespace, (err, data) => {
         if (err) {
-            console.log("read segments", err);
+            console.error("read segments", err);
             res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
             return;
         }
@@ -174,7 +175,7 @@ function serveIndexPage(namespace, req, res) {
 function serveSimilarPage(namespace, req, res) {
     readSegments(namespace, (err, data) => {
         if (err) {
-            console.log("read segments", err);
+            console.error("read segments", err);
             res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
             return;
         }
@@ -215,7 +216,7 @@ app.get("/-/info", function(req, res) {
 
     readSegments(namespace, (err, data) => {
         if (err) {
-            console.log("read segments", err);
+            console.error("read segments", err);
             res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
             return;
         }
@@ -237,27 +238,30 @@ app.get("/-/info", function(req, res) {
 
         database.buildTrigrams(RESOURCES_ROOT + "/" + namespace + "/raw", base, seg.length, (err, trigrams) => {
             if (err) {
-                console.log("generate trigrams", err);
+                console.error("generate trigrams", err);
                 res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
                 return;
             }
-            //database.storeTrigrams(db, namespace, id, name, trigrams, (err) => {
+            database.findSimilarTrigrams(db, trigrams, (err, sim) => {
                 if (err) {
-                    console.log("store trigrams", err);
+                    console.error("find similar", err);
                     res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
                     return;
                 }
-                database.findSimilarTrigrams(db, trigrams, (err, sim) => {
-                    if (err) {
-                        console.log("find similar", err);
-                        res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
-                        return;
-                    }
+                Promise.all(sim.map(x => {
+                    return resourceStat(x.namespace, "flake.flag").then(() => {
+                        x.flake = true;
+                        return x;
+                    }).catch(() => x);
+                })).then(sim => {
                     res.json({
                         similar: sim,
                     });
+                }).catch(err => {
+                    console.error("load flake flags", err);
+                    res.status(500).type("text/plain").send("I'm not able to process your request. :-(\n");
                 });
-            //});
+            });
         });
     });
 });
@@ -294,13 +298,39 @@ app.get("*", function(req, res) {
     }
 });
 
+function make(target) {
+    return new Promise((resolve, reject) => {
+        child_process.execFile("make", [target], {
+            cwd: RESOURCES_ROOT + "/../",
+        }, (err, stdout, stderr) => {
+            if (err) {
+                console.error("make", target, "-- failed:", err, "STDOUT:", stdout);
+                reject(err);
+            } else {
+                console.error("make", target, "-- done");
+                resolve();
+            }
+        });
+    });
+}
+
+function hourly() {
+    make("load-flakes")
+        .catch(() => {})
+        .then(() => make("load-failures"))
+        .catch(() => {});
+}
+
 let db;
 database.init(RESOURCES_ROOT + "/trigrams.db", (err, d) => {
     if (err) {
         throw err;
     }
     db = d;
-    app.listen(8080, function () {
-      console.log("Viewer is listening on http://localhost:8080/")
-    })
+    app.listen(8080, function() {
+        console.error("Viewer is listening on http://localhost:8080/");
+    });
+
+    hourly();
+    setInterval(hourly, 60*60*1000);
 });

@@ -41,7 +41,7 @@ class App extends React.Component {
                 <h1>Similar ({this.state.similar.length})</h1>
                 <ul className="similar">
                 {this.state.similar.map((x, i) => {
-                    return <li key={i}><div>{x.namespace}</div><div><a href={APP_ROOT + "/" + x.namespace + "/#segment:" + x.segment}>{x.name}</a></div></li>;
+                    return <li key={i}><div>{x.flake ? [<span className="flake-marker">[flake]</span>, " "]: []}{x.namespace}</div><div><a href={APP_ROOT + "/" + x.namespace + "/#segment:" + x.segment}>{x.name}</a></div></li>;
                 })}
                 </ul>
             </div>
