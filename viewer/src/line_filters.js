@@ -56,6 +56,7 @@ const highlightRe = new RegExp("\\b(?:" + [
     // F0304 13:37:30.948988       1 helpers.go:119] error: build...cker.io/fail/me not found: does not exist or no pull access
     /[WEF][0-9]{4} [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\.[0-9]{6} [0-9 ]{7} [A-Za-z0-9._-]+:[0-9]+\]/,
     /Received interrupt\.  Running AfterSuite\.\.\./,
+    /exited with code [1-9]+/,
 ].map(r => r.source).join("|") + ")", "i");
 export function filterHighlight(parts) {
     return parts.reduce((r, part) => {
