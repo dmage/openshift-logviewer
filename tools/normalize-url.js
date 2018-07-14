@@ -52,5 +52,11 @@ if (match !== null) {
     result("TODO-travis", "travis-ci-org/" + build, `https://api.travis-ci.org/v3/job/${build}/log.txt`);
 }
 
+match = /^https?:\/\/s3\.amazonaws\.com\/+aos-ci\/+ghprb\/+openshift\/+openshift-ansible\/+([A-Za-z0-9.]*)?\/+index\.html$/.exec(url);
+if (match !== null) {
+    const id = match[1].replace(/\/\/+/g, "/");
+    result("jenkins", id, `https://s3.amazonaws.com/aos-ci/ghprb/openshift/openshift-ansible/${id}/output.log`);
+}
+
 console.error(`${path.basename(process.argv[1])}: unknown location: ${url}`);
 process.exit(1);
